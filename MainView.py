@@ -25,6 +25,7 @@ class NameForm(QDialog):
         self.fileObj = fileObj
 
         oldNameLab = QLabel('原名：' + self.fileObj.name)
+        oldNameLab.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
         self.edit = QLineEdit()
         button = QPushButton("确定")
@@ -188,7 +189,7 @@ class MainView(QWidget):
             isNewAppExist = False
             isOldAppExist = False
             for file in self.files:
-                if newappName == file.name:
+                if newappName == file.name and file.name != fileObj.name:
                     isNewAppExist =True
                     break
 
@@ -197,8 +198,8 @@ class MainView(QWidget):
                     isOldAppExist =True
                     break
             if isNewAppExist:
-                currentTime = time.strftime("%Y%m%d%H%M%S", time.localtime())
-                newappName = 'iyunshu_' + currentTime + '.apk'
+                addName = time.strftime("%H%M%S", time.localtime())
+                newappName = 'iyunshu_' + currentTime + '_' + addName + '.apk'
 
             msg = QMessageBox.question(self, '提醒', '是否要选择%s文件作为发布版本，并把之前版本名称改为%s？' %(fileObj.name, newappName), QMessageBox.Ok|QMessageBox.Cancel)
             if msg == QMessageBox.Ok:
