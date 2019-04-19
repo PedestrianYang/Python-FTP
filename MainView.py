@@ -276,15 +276,25 @@ class MainView(QWidget):
 
 
 
-
-
-
     def uploadAction(self, files):
         #上传，然后刷新界面
-        print(files)
+        shouldUploadFile = []
         for url in files:
             tempUrl:QUrl = url
-            self.upload('', tempUrl.path())
+            filename = tempUrl.fileName()
+            isExist = False
+            for file in self.files:
+                if file.name == filename:
+                    isExist = True
+                    break
+            if isExist:
+                QMessageBox.information(self, '提醒', filename + '文件已经存在FTP服务器中，请改名后再上传！', QMessageBox.Ok)
+                continue
+            else:
+                shouldUploadFile.append(tempUrl.path())
+
+        for uploadPath in shouldUploadFile:
+            self.upload('', uploadPath)
         self.refreshUI()
 
 
@@ -294,8 +304,6 @@ class MainView(QWidget):
         self.files.clear()
         for file in files:
             if file.startswith('iyunshu'):
-
-
                 L = list(self.ftp.sendcmd('MDTM ' + "%s" % (file)))
                 dir_t=L[4]+L[5]+L[6]+L[7]+'-'+L[8]+L[9]+'-'+L[10]+L[11]+' '+L[12]+L[13]+':'+L[14]+L[15]+':'+L[16]+L[17]
                 timeArray = time.strptime(dir_t, "%Y-%m-%d %H:%M:%S")
@@ -327,7 +335,6 @@ class MainView(QWidget):
         self.selectView.show()
 
     def ftpconnect(self, host, username, password):
-        print(host)
         ftp = FTP()
         ftp.connect(host, 21)
         ftp.encoding = 'gbk'
@@ -342,6 +349,11 @@ class MainView(QWidget):
         :param localPath: 客户端文件或文件夹路径，当路径以localDir开始，文件保存到homeDir的相对路径下
         :return:
         """
+
+        if os.path.exists(localPath) == False:
+            QMessageBox.warning(self, '提示', '路径%s未找到' % localPath, QMessageBox.Ok)
+            return
+
         result = [1, ""]
 
         try:
