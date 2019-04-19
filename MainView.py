@@ -8,17 +8,23 @@ from ftplib import FTP
 import ftplib
 from SelectFile import  *
 import ftp_config
+import time
 
 _XFER_FILE = 'FILE'
 _XFER_DIR  = 'DIR'
 
+class FileObj:
+    def __init__(self, name, date):
+        self.name = name
+        self.date = date
+
 class NameForm(QDialog):
     changeNameSingal = Signal(str, str)
-    def __init__(self, oldName):
+    def __init__(self, fileObj):
         QDialog.__init__(self)
-        self.oldName = oldName
+        self.fileObj = fileObj
 
-        oldNameLab = QLabel('原名：' + self.oldName)
+        oldNameLab = QLabel('原名：' + self.fileObj.name)
 
         self.edit = QLineEdit()
         button = QPushButton("确定")
@@ -34,7 +40,30 @@ class NameForm(QDialog):
         button.clicked.connect(self.buttonClick)
 
     def buttonClick(self):
-        self.changeNameSingal.emit(self.oldName,self.edit.text())
+        newAppname = self.edit.text()
+        if newAppname.endswith('.apk') == False :
+            question = QMessageBox.warning(self, '提醒', "命名不规范：请以'.apk'为后缀，重新命名", QMessageBox.Ok)
+            if question == QMessageBox.Ok:
+                newAppname = newAppname + '.apk'
+                self.edit.setText(newAppname)
+            return
+
+        if newAppname.startswith('iyunshu_') == False:
+            question2 = QMessageBox.warning(self, '提醒', "命名不规范：请以'iyunshu'为前缀，重新命名", QMessageBox.Ok)
+            if question2 == QMessageBox.Ok:
+                newAppname = 'iyunshu_' + newAppname
+                self.edit.setText(newAppname)
+            return
+
+        msg = QMessageBox.question(self, '提醒', '是否要把'+ self.fileObj.name + '文件名改为'+ self.edit.text() + '？', QMessageBox.Ok|QMessageBox.Cancel)
+        if msg == QMessageBox.Ok:
+            print('是')
+            self.changeNameSingal.emit(self.fileObj.name, self.edit.text())
+        else:
+            print('取消')
+
+
+
 
 
 
@@ -43,18 +72,22 @@ class ItemFile(QWidget):
     fixSingal = Signal(QListWidgetItem)
     checkSingal = Signal(QListWidgetItem)
     deleteSingal = Signal(QListWidgetItem)
-    def __init__(self, filePath, tempItem):
+    def __init__(self, fileOBj, tempItem):
         QWidget.__init__(self)
-        self.filePath = filePath
+        self.fileOBj = fileOBj
         self.tempItem = tempItem
         self.setContainer()
 
     def setContainer(self):
         h_box = QHBoxLayout()
 
-        filePathLab = QLabel(self.filePath)
+        filePathLab = QLabel(self.fileOBj.name)
         filePathLab.setMinimumWidth(200)
         h_box.addWidget(filePathLab)
+
+        timeLab = QLabel(self.fileOBj.date)
+        timeLab.setMinimumWidth(200)
+        h_box.addWidget(timeLab)
 
         fixBtn = QPushButton('修改名字')
         fixBtn.setFixedSize(90, 50)
@@ -77,16 +110,32 @@ class ItemFile(QWidget):
         self.fixSingal.emit(self.tempItem)
 
     def checkBtnClick(self):
+        if self.fileOBj.name == 'iyunshu.apk':
+            QMessageBox.information(self, '提醒', self.fileOBj.name + '已经是发布版本了！', QMessageBox.Ok)
+            return
         self.checkSingal.emit(self.tempItem)
 
+
     def deleteBtnClick(self):
-        self.deleteSingal.emit(self.tempItem)
+        if self.fileOBj.name == 'iyunshu.apk':
+            QMessageBox.warning(self, '警告', '该文件是当前版本，不能删除，请先备份！')
+            return
+        else:
+            msg = QMessageBox.question(self, '提醒', '是否要删除'+ self.fileOBj.name + '文件？', QMessageBox.Ok|QMessageBox.Cancel)
+            if msg == QMessageBox.Ok:
+                print('删除')
+                self.deleteSingal.emit(self.tempItem)
+            else:
+                print('取消')
+
+
 
 class MainView(QWidget):
     def __init__(self):
         QWidget.__init__(self)
         self.ftp = self.ftpconnect(ftp_config.host, ftp_config.username, ftp_config.password)
         self.files = []
+        self.currentApp = 'iyunshu.apk';
         self.selectView = SelectFile()
         self.selectView.comfirmSingal.connect(self.uploadAction)
         self.setContainer()
@@ -96,11 +145,11 @@ class MainView(QWidget):
         self.listView.clear()
 
         for i in range(len(self.files)):
-            url = self.files[i]
+            fileObj = self.files[i]
 
             tempItem = QListWidgetItem()
             tempItem.setSizeHint(QSize(100, 60))
-            fileItem = ItemFile(url, tempItem)
+            fileItem = ItemFile(fileObj, tempItem)
             fileItem.fixSingal.connect(self.fixFile)
             fileItem.checkSingal.connect(self.checkFile)
             fileItem.deleteSingal.connect(self.deleteFile)
@@ -111,13 +160,19 @@ class MainView(QWidget):
     def fixFile(self, tempitem):
         #修改名字
         row = self.listView.row(tempitem)
-        url = self.files[row]
+        fileObj = self.files[row]
 
-        self.form = NameForm(url)
+        self.form = NameForm(fileObj)
         self.form.changeNameSingal.connect(self.changeName)
         self.form.show()
 
     def changeName(self, oldName, newName):
+
+        for file in self.files:
+            if file.name == newName:
+                QMessageBox.warning(self, '提示', newName + '文件已经存在，不能重复命名！', QMessageBox.Ok)
+                return
+
         self.ftp.rename(oldName, newName)
         self.form.close()
         self.refreshUI()
@@ -125,16 +180,45 @@ class MainView(QWidget):
 
     def checkFile(self, tempitem):
         row = self.listView.row(tempitem)
-        url = self.files[row]
+        fileObj = self.files[row]
 
-        # self.ftp.rename('', 'iyunshu.apk')
+        if fileObj.name != self.currentApp:
+            currentTime = time.strftime("%Y%m%d", time.localtime())
+            newappName = 'iyunshu_' + currentTime + '.apk'
+            isNewAppExist = False
+            isOldAppExist = False
+            for file in self.files:
+                if newappName == file.name:
+                    isNewAppExist =True
+                    break
+
+            for file in self.files:
+                if 'iyunshu.apk' == file.name:
+                    isOldAppExist =True
+                    break
+            if isNewAppExist:
+                currentTime = time.strftime("%Y%m%d%H%M%S", time.localtime())
+                newappName = 'iyunshu_' + currentTime + '.apk'
+
+            msg = QMessageBox.question(self, '提醒', '是否要选择%s文件作为发布版本，并把之前版本名称改为%s？' %(fileObj.name, newappName), QMessageBox.Ok|QMessageBox.Cancel)
+            if msg == QMessageBox.Ok:
+                print('是')
+                if isOldAppExist == True:
+                    self.ftp.rename(self.currentApp, newappName)
+                self.ftp.rename(fileObj.name, self.currentApp)
+                self.refreshUI()
+            else:
+                print('取消')
+
+
+
 
 
     def deleteFile(self, tempitem):
         row = self.listView.row(tempitem)
-        url = self.files[row]
+        file = self.files[row]
 
-        tempurl =  url
+        tempurl =  file.name
 
         #删除ftp文件时，先判断是否是文件夹
         if self.checkFileDir(tempurl):
@@ -143,7 +227,7 @@ class MainView(QWidget):
             #如果是文件夹则递归删除
             self.deletFTPDir(tempurl)
 
-        self.files.remove(url)
+        self.files.remove(file)
         self.listView.takeItem(row)
 
     def deletFTPDir(self, url):
@@ -204,7 +288,22 @@ class MainView(QWidget):
 
 
     def refreshUI(self):
-        self.files = self.ftp.nlst()
+        files = self.ftp.nlst()
+
+        self.files.clear()
+        for file in files:
+            if file.startswith('iyunshu'):
+
+
+                L = list(self.ftp.sendcmd('MDTM ' + "%s" % (file)))
+                dir_t=L[4]+L[5]+L[6]+L[7]+'-'+L[8]+L[9]+'-'+L[10]+L[11]+' '+L[12]+L[13]+':'+L[14]+L[15]+':'+L[16]+L[17]
+                timeArray = time.strptime(dir_t, "%Y-%m-%d %H:%M:%S")
+                timeStamp = int(time.mktime(timeArray)) + 28800
+                timeArrayaa = time.localtime(timeStamp)
+                timeStr = time.strftime("%Y-%m-%d %H:%M:%S", timeArrayaa)
+                fileObj = FileObj(file, timeStr)
+
+                self.files.append(fileObj)
         self.setListviewItem()
 
 
@@ -232,6 +331,7 @@ class MainView(QWidget):
         ftp.connect(host, 21)
         ftp.encoding = 'gbk'
         ftp.login(username, password)
+
         return ftp
 
     def upload(self, remoteRelDir, localPath):
@@ -355,7 +455,6 @@ class MainView(QWidget):
         self.ftp.cwd("..")
 
         return result
-
 
     # 判断remote path isDir or isFile
     def isDir(self, path):
