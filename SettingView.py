@@ -4,9 +4,20 @@ from PySide2.QtGui import *
 from ftp_config import *
 import ftp_config
 
+class MyButton(QPushButton):
+    Clicked = Signal(QPushButton)
+    def __init__(self, title, tag):
+        QPushButton.__init__(self, title)
+        self.tag = tag
+
+    def mousePressEvent(self, event:QMouseEvent):
+        if event.type() == QMouseEvent.MouseButtonPress:
+            self.Clicked.emit(self)
+
 class SettingView(QWidget):
-    comfirmSingal = Signal(str, str, str, str)
+    comfirmSingal = Signal(str, str, str, int)
     def __init__(self):
+        self.type = 1
         QWidget.__init__(self)
         self.setContainer()
 
@@ -35,10 +46,21 @@ class SettingView(QWidget):
         v_box.addLayout(pwdLay)
 
         filterLay = QHBoxLayout()
-        filterLab = QLabel('显示文件')
-        self.filterEdit = QLineEdit(ftp_config.filterWords)
+        filterLab = QLabel('选择要上传的apk类型')
         filterLay.addWidget(filterLab)
-        filterLay.addWidget(self.filterEdit)
+
+        iyunshuBtn = MyButton('云书网', 1)
+        iyunshuBtn.Clicked.connect(self.btnClick)
+        wenhuayunBtn = MyButton('文化云', 2)
+        wenhuayunBtn.Clicked.connect(self.btnClick)
+        yunzhangguiBtn = MyButton('云掌柜', 3)
+        yunzhangguiBtn.Clicked.connect(self.btnClick)
+        filterLay.addWidget(iyunshuBtn)
+        filterLay.addWidget(wenhuayunBtn)
+        filterLay.addWidget(yunzhangguiBtn)
+
+
+
         v_box.addLayout(filterLay)
 
         controlLay = QHBoxLayout()
@@ -60,8 +82,10 @@ class SettingView(QWidget):
         self.ipEdit.setText(ftp_config.host)
         self.nameEdit.setText(ftp_config.username)
         self.pwdEdit.setText(ftp_config.password)
-        self.filterEdit.setText(ftp_config.filterWords)
+        self.type = 1
 
     def confirmBtnClick(self):
-        self.comfirmSingal.emit(self.ipEdit.text(), self.nameEdit.text(), self.pwdEdit.text(), self.filterEdit.text())
+        self.comfirmSingal.emit(self.ipEdit.text(), self.nameEdit.text(), self.pwdEdit.text(), self.type)
+    def btnClick(self, btn):
+        self.type = btn.tag
 

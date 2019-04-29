@@ -14,6 +14,10 @@ import time
 _XFER_FILE = 'FILE'
 _XFER_DIR  = 'DIR'
 
+iyunshu = 'iyunshu'
+wenhuayun = 'wenhuayun'
+yunzhanggui = 'yunzhanggui'
+
 class ConnectThread(QThread):
     loginCompelet = Signal()
     def __init__(self, ftp, host,username, password):
@@ -235,9 +239,10 @@ class FileObj:
 
 class NameForm(QDialog):
     changeNameSingal = Signal(str, str)
-    def __init__(self, fileObj):
+    def __init__(self, fileObj, filterWord):
         QDialog.__init__(self)
         self.fileObj = fileObj
+        self.filterWord = filterWord
 
         oldNameLab = QLabel('原名：' + self.fileObj.name)
         oldNameLab.setTextInteractionFlags(Qt.TextSelectableByMouse)
@@ -264,10 +269,12 @@ class NameForm(QDialog):
                 self.edit.setText(newAppname)
             return
 
-        if newAppname.startswith('iyunshu_') == False:
-            question2 = QMessageBox.warning(self, '提醒', "命名不规范：请以'iyunshu'为前缀，重新命名", QMessageBox.Ok)
+        self.filePerName = self.filterWord + '_'
+
+        if newAppname.startswith(self.filePerName) == False:
+            question2 = QMessageBox.warning(self, '提醒', "命名不规范：请以'%s'为前缀，重新命名" % self.filePerName, QMessageBox.Ok)
             if question2 == QMessageBox.Ok:
-                newAppname = 'iyunshu_' + newAppname
+                newAppname = self.filePerName + newAppname
                 self.edit.setText(newAppname)
             return
 
@@ -285,10 +292,11 @@ class ItemFile(QWidget):
     fixSingal = Signal(QListWidgetItem)
     checkSingal = Signal(QListWidgetItem)
     deleteSingal = Signal(QListWidgetItem)
-    def __init__(self, fileOBj, tempItem):
+    def __init__(self, fileOBj, tempItem, currentFile):
         QWidget.__init__(self)
         self.fileOBj = fileOBj
         self.tempItem = tempItem
+        self.currentFile = currentFile
         self.setContainer()
 
     def setContainer(self):
@@ -323,14 +331,14 @@ class ItemFile(QWidget):
         self.fixSingal.emit(self.tempItem)
 
     def checkBtnClick(self):
-        if self.fileOBj.name == 'iyunshu.apk':
+        if self.fileOBj.name == self.currentFile:
             QMessageBox.information(self, '提醒', self.fileOBj.name + '已经是发布版本了！', QMessageBox.Ok)
             return
         self.checkSingal.emit(self.tempItem)
 
 
     def deleteBtnClick(self):
-        if self.fileOBj.name == 'iyunshu.apk':
+        if self.fileOBj.name == self.currentFile:
             QMessageBox.warning(self, '警告', '该文件是当前版本，不能删除，请先备份！')
             return
         else:
@@ -348,7 +356,7 @@ class MainView(QWidget):
         QWidget.__init__(self)
         self.ftpconnect(ftp_config.host, ftp_config.username, ftp_config.password, ftp_config.filterWords)
         self.files = []
-        self.currentApp = 'iyunshu.apk';
+
         self.settingView = SettingView()
         self.settingView.comfirmSingal.connect(self.settingAction)
         self.selectView = SelectFile()
@@ -364,7 +372,7 @@ class MainView(QWidget):
 
             tempItem = QListWidgetItem()
             tempItem.setSizeHint(QSize(100, 60))
-            fileItem = ItemFile(fileObj, tempItem)
+            fileItem = ItemFile(fileObj, tempItem, self.currentApp)
             fileItem.fixSingal.connect(self.fixFile)
             fileItem.checkSingal.connect(self.checkFile)
             fileItem.deleteSingal.connect(self.deleteFile)
@@ -377,7 +385,7 @@ class MainView(QWidget):
         row = self.listView.row(tempitem)
         fileObj = self.files[row]
 
-        self.form = NameForm(fileObj)
+        self.form = NameForm(fileObj, self.filterWord)
         self.form.changeNameSingal.connect(self.changeName)
         self.form.show()
 
@@ -399,7 +407,8 @@ class MainView(QWidget):
 
         if fileObj.name != self.currentApp:
             currentTime = time.strftime("%Y%m%d", time.localtime())
-            newappName = 'iyunshu_' + currentTime + '.apk'
+
+            newappName = self.filterWord + '_' + currentTime + '.apk'
             isNewAppExist = False
             isOldAppExist = False
             for file in self.files:
@@ -408,12 +417,12 @@ class MainView(QWidget):
                     break
 
             for file in self.files:
-                if 'iyunshu.apk' == file.name:
+                if self.currentApp == file.name:
                     isOldAppExist =True
                     break
             if isNewAppExist:
                 addName = time.strftime("%H%M%S", time.localtime())
-                newappName = 'iyunshu_' + currentTime + '_' + addName + '.apk'
+                newappName = self.filterWord + '_' + currentTime + '_' + addName + '.apk'
 
             msg = QMessageBox.question(self, '提醒', '是否要选择%s文件作为发布版本，并把之前版本名称改为%s？' %(fileObj.name, newappName), QMessageBox.Ok|QMessageBox.Cancel)
             if msg == QMessageBox.Ok:
@@ -488,9 +497,9 @@ class MainView(QWidget):
                 print('不识别' + file_name)
                 return True
 
-    def settingAction(self, host, username, password, filterWord):
+    def settingAction(self, host, username, password, apptype):
         self.ftp.quit()
-        self.ftpconnect(host, username, password, filterWord)
+        self.ftpconnect(host, username, password, apptype)
 
     def uploadAction(self, files):
         #上传，然后刷新界面
@@ -515,7 +524,7 @@ class MainView(QWidget):
 
     def aaaa(self, aa):
         lll = list(aa)
-        time = '20' + lll[6] + lll[7] + ' ' + lll[0] + lll[1] + ' ' + lll[3] + lll[4] + ' ' + lll[10] + lll[11] + \
+        time = '20' + lll[6] + lll[7] + '-' + lll[0] + lll[1] + '-' + lll[3] + lll[4] + ' ' + lll[10] + lll[11] + \
                lll[12] + lll[13] + lll[14] + lll[15] + lll[16]
         filename = lll[39]
         for i in range(len(lll)):
@@ -533,7 +542,7 @@ class MainView(QWidget):
 
     def refreshUI(self):
         self.files.clear()
-        print("---------")
+
         # L = list(self.ftp.sendcmd('help'))
         # dir_t=L[4]+L[5]+L[6]+L[7]+'-'+L[8]+L[9]+'-'+L[10]+L[11]+' '+L[12]+L[13]+':'+L[14]+L[15]+':'+L[16]+L[17]
         # timeArray = time.strptime(dir_t, "%Y-%m-%d %H:%M:%S")
@@ -543,17 +552,16 @@ class MainView(QWidget):
         # print(timeStr)
         # print(self.ftp.sendcmd('date'))
         # aaaa = []
-        self.ftp.retrlines('LIST', self.aaaa)
-        self.setListviewItem()
+        # self.ftp.retrlines('LIST', self.aaaa)
+        # self.setListviewItem()
 
         # print(aaaa)
         # print(self.ftp.retrlines("list -lc %s " % ('iyunshu.apk')))
-        print("---------")
-        return
         files = self.ftp.nlst()
 
         for file in files:
-            if file.startswith(self.filterWord):
+            if file.startswith(self.filterWord) and file.endswith('.apk'):
+
                 print(file)
 
                 L = list(self.ftp.sendcmd('MDTM ' + "%s" % (file)))
@@ -566,6 +574,8 @@ class MainView(QWidget):
 
                 self.files.append(fileObj)
         self.setListviewItem()
+
+
 
 
     def setContainer(self):
@@ -599,15 +609,25 @@ class MainView(QWidget):
     def uploadBtnClick(self):
         self.selectView.show()
 
-    def ftpconnect(self, host, username, password, filterWords):
+    def ftpconnect(self, host, username, password, apptype):
         ftp = FTP()
-        self.filterWord = filterWords
+        filterWord = iyunshu
+        if apptype == 1:
+            filterWord = iyunshu
+        elif apptype == 2:
+            filterWord = wenhuayun
+        elif apptype == 3:
+            filterWord = yunzhanggui
+
+        self.filterWord = filterWord
+        self.currentApp = self.filterWord + '.apk'
         self.loginThread = ConnectThread(ftp, host, username, password)
         self.loginThread.start()
         self.loginThread.loginCompelet.connect(self.ftpLoginComplete)
 
     def ftpLoginComplete(self):
         self.ftp = self.loginThread.ftp
+
         self.refreshUI()
 
     # 判断remote path isDir or isFile
