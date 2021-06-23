@@ -55,9 +55,12 @@ class SettingView(QWidget):
         wenhuayunBtn.Clicked.connect(self.btnClick)
         yunzhangguiBtn = MyButton('云掌柜', 3)
         yunzhangguiBtn.Clicked.connect(self.btnClick)
+        hepiaoBtn = MyButton('核票app', 4)
+        hepiaoBtn.Clicked.connect(self.btnClick)
         filterLay.addWidget(iyunshuBtn)
         filterLay.addWidget(wenhuayunBtn)
         filterLay.addWidget(yunzhangguiBtn)
+        filterLay.addWidget(hepiaoBtn)
 
 
 

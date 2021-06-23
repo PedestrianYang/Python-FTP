@@ -17,6 +17,7 @@ _XFER_DIR  = 'DIR'
 iyunshu = 'iyunshu'
 wenhuayun = 'wenhuayun'
 yunzhanggui = 'yunzhanggui'
+whycheckticket = 'whyct'
 
 class ConnectThread(QThread):
     loginCompelet = Signal()
@@ -29,7 +30,7 @@ class ConnectThread(QThread):
         print(username, password)
 
     def run(self, *args, **kwargs):
-        self.ftp.connect(self.host, 21)
+        self.ftp.connect(self.host, 7001)
         self.ftp.encoding = 'gbk'
         self.ftp.login(self.username, self.password)
         self.loginCompelet.emit()
@@ -618,6 +619,8 @@ class MainView(QWidget):
             filterWord = wenhuayun
         elif apptype == 3:
             filterWord = yunzhanggui
+        elif apptype == 4:
+            filterWord = whycheckticket
 
         self.filterWord = filterWord
         self.currentApp = self.filterWord + '.apk'
